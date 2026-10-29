@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard – BlogSpace</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="dashboard">
+  <div id="nav"></div>
+  <main class="container">
+    <h1 class="section-title" id="welcome">Dashboard</h1>
+    <div class="stats">
+      <div class="stat"><strong id="statPosts">0</strong><span>Your posts</span></div>
+      <div class="stat"><strong id="statAll">0</strong><span>All posts on BlogSpace</span></div>
+    </div>
+    <p style="margin-bottom:16px"><a class="btn" href="create-blog.html">Create blog</a></p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Title</th><th>Topic</th><th>Date</th><th></th></tr></thead>
+        <tbody id="myPosts"></tbody>
+      </table>
+    </div>
+  </main>
+  <div id="footer"></div>
+  <script src="js/app.js"></script>
+</body>
+</html>

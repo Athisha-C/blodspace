@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "title": "My First Blog",
+    "content": "Welcome to my BlogSpace application!",
+    "author": "BlogSpace User",
+    "tag": "General",
+    "date": "2026-10-28"
+  },
+  {
+    "id": 1793195784504,
+    "title": "Backend Edit Test",
+    "content": "This is a test blog to check whether the frontend sends data to the backend successfully.",
+    "author": "athi",
+    "tag": "General",
+    "date": "2026-10-28"
+  },
+  {
+    "id": 1793279200182,
+    "title": "My First BlogS",
+    "content": "I am learning to build my BlogSpace website using HTML, CSS, JavaScript, and Node.js.",
+    "author": "kumar p",
+    "tag": "General",
+    "date": "2026-10-29"
+  }
+]

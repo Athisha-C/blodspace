@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Blog – BlogSpace</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="create">
+  <div id="nav"></div>
+  <main class="auth-wrap">
+    <form class="card wide" id="blogForm" novalidate>
+      <h1>Create blog</h1>
+      <p class="sub">Write something useful for other learners.</p>
+      <div class="field">
+        <label for="title">Title</label>
+        <input id="title" name="title" required>
+        <div class="error"></div>
+      </div>
+      <div class="field">
+        <label for="tag">Topic</label>
+        <select id="tag" name="tag"><option>HTML</option><option>CSS</option><option>JavaScript</option><option>General</option></select>
+      </div>
+      <div class="field">
+        <label for="body">Content</label>
+        <textarea id="body" name="body" required></textarea>
+        <div class="error"></div>
+      </div>
+      <button class="btn" type="submit">Publish</button>
+      <p class="form-msg ok" id="msg"></p>
+    </form>
+  </main>
+  <div id="footer"></div>
+  <script src="js/app.js"></script>
+</body>
+</html>

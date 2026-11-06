@@ -4,8 +4,63 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+require('dotenv').config();
+const User = require('./models/User');
+const Blog = require('./models/Blog');
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 const app = express();
+
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('MongoDB connected successfully'))
+  .catch((error) => console.error('MongoDB connection error:', error));
 app.use(cors());
+app.post('/api/register', async (req, res) => {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+        return res.status(400).json({
+            message: 'All fields are required.'
+        });
+    }
+
+    try {
+        const normalizedEmail = email.trim().toLowerCase();
+const existingUser = await User.findOne({ email: normalizedEmail });
+
+        if (existingUser) {
+            return res.status(409).json({
+                message: 'Email already registered.'
+            });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newUser = await User.create({
+            name,
+            email: normalizedEmail,
+            password: hashedPassword
+        });
+
+        res.status(201).json({
+            message: 'Registration successful!',
+            user: {
+                id: newUser._id,
+                name: newUser.name,
+                email: newUser.email
+            }
+        });
+
+    } catch (error) {
+        console.error('Registration error:', error);
+
+        res.status(500).json({
+            message: 'Registration failed.'
+        });
+    }
+});
 
 app.get('/', (req, res) => {
     res.send('Welcome to BlogSpace Backend!');
@@ -53,8 +108,51 @@ function saveBlogs() {
 }
 
 
-app.get('/api/blogs', (req, res) => {
-    res.json(blogs);
+app.get('/api/blogs', async (req, res) => {
+    try {
+        const blogs = await Blog.find().sort({ date: -1 });
+
+        res.json(blogs.map(blog => ({
+            id: blog._id,
+            title: blog.title,
+            content: blog.content,
+            author: blog.author,
+            tag: blog.tag,
+            date: blog.date
+        })));
+
+    } catch (error) {
+        console.error('Fetch blogs error:', error);
+
+        res.status(500).json({
+            message: 'Could not fetch blogs.'
+        });
+    }
+});
+app.get('/api/blogs/:id', async (req, res) => {
+    try {
+        const blog = await Blog.findById(req.params.id);
+
+        if (!blog) {
+            return res.status(404).json({
+                message: 'Blog not found.'
+            });
+        }
+
+        res.json({
+            id: blog._id,
+            title: blog.title,
+            content: blog.content,
+            author: blog.author,
+            tag: blog.tag,
+            date: blog.date
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: 'Could not fetch blog.'
+        });
+    }
 });
 
 app.use(express.json());
@@ -119,57 +217,58 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
-app.post("/api/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
+app.post('/api/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
 
-    if (
-      typeof email !== "string" ||
-      typeof password !== "string" ||
-      !email.trim() ||
-      !password
-    ) {
-      return res.status(400).json({
-        message: "Email and password are required."
-      });
+        if (
+            typeof email !== 'string' ||
+            typeof password !== 'string' ||
+            !email.trim() ||
+            !password
+        ) {
+            return res.status(400).json({
+                message: 'Email and password are required.'
+            });
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+
+        const user = await User.findOne({
+            email: normalizedEmail
+        });
+
+        if (
+            !user ||
+            !(await bcrypt.compare(password, user.password))
+        ) {
+            return res.status(401).json({
+                message: 'Email or password is incorrect.'
+            });
+        }
+
+        res.json({
+            message: 'Login successful!',
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email
+            }
+        });
+
+    } catch (error) {
+        console.error('Login error:', error);
+
+        res.status(500).json({
+            message: 'Could not log in. Please try again.'
+        });
     }
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    const user = users.find(
-      u => u.email === normalizedEmail
-    );
-
-    if (
-      !user ||
-      !(await bcrypt.compare(password, user.password))
-    ) {
-      return res.status(401).json({
-        message: "Email or password is incorrect."
-      });
-    }
-
-    return res.json({
-      message: "Login successful!",
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email
-      }
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-
-    return res.status(500).json({
-      message: "Could not log in. Please try again."
-    });
-  }
 });
 
 
 
-app.post('/api/blogs', (req, res) => {
-    const { title, content } = req.body;
+app.post('/api/blogs', async (req, res) => {
+    const { title, content, author, tag } = req.body;
 
     if (
         typeof title !== 'string' ||
@@ -182,26 +281,21 @@ app.post('/api/blogs', (req, res) => {
         });
     }
 
-    const newBlog = {
-        id: Date.now(),
-        title: req.body.title,
-        content: req.body.content,
-        author: req.body.author,
-        tag: req.body.tag,
-        date: req.body.date
-    };
-
-    blogs.push(newBlog);
-
     try {
-        saveBlogs();
+        const newBlog = await Blog.create({
+            title: title.trim(),
+            content: content.trim(),
+            author: author || 'BlogSpace User',
+            tag: tag || 'General'
+        });
 
         res.status(201).json({
             message: 'Blog created successfully!',
             blog: newBlog
         });
+
     } catch (error) {
-        blogs.pop();
+        console.error('Blog creation error:', error);
 
         res.status(500).json({
             message: 'Could not save blog.'
@@ -211,72 +305,84 @@ app.post('/api/blogs', (req, res) => {
 
 
 
-app.put('/api/blogs/:id', (req, res) => {
-    const id = Number(req.params.id);
-    const blog = blogs.find(b => b.id === id);
+app.put('/api/blogs/:id', async (req, res) => {
+    const { title, content, author, tag } = req.body;
 
-    if (!blog) {
-        return res.status(404).json({
-            message: 'Blog not found!'
+    if (
+        typeof title !== 'string' ||
+        title.trim().length < 3 ||
+        typeof content !== 'string' ||
+        content.trim().length < 20
+    ) {
+        return res.status(400).json({
+            message: 'Title must be at least 3 characters and content at least 20 characters.'
         });
     }
 
-    const oldBlog = { ...blog };
-
-    blog.title = req.body.title;
-    blog.content = req.body.content;
-    blog.author = req.body.author ?? blog.author;
-    blog.tag = req.body.tag ?? blog.tag;
-    blog.date = req.body.date ?? blog.date;
-
     try {
-        saveBlogs();
+        const updatedBlog = await Blog.findByIdAndUpdate(
+            req.params.id,
+            {
+                title: title.trim(),
+                content: content.trim(),
+                author,
+                tag
+            },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedBlog) {
+            return res.status(404).json({
+                message: 'Blog not found!'
+            });
+        }
 
         res.json({
             message: 'Blog updated successfully!',
-            blog: blog
+            blog: {
+                id: updatedBlog._id,
+                title: updatedBlog.title,
+                content: updatedBlog.content,
+                author: updatedBlog.author,
+                tag: updatedBlog.tag,
+                date: updatedBlog.date
+            }
         });
+
     } catch (error) {
-        Object.assign(blog, oldBlog);
+        console.error('Update blog error:', error);
 
         res.status(500).json({
-            message: 'Could not save updated blog.'
+            message: 'Could not update blog.'
         });
     }
 });
 
 
 
-app.delete('/api/blogs/:id', (req, res) => {
-    const id = Number(req.params.id);
-    const blogIndex = blogs.findIndex(b => b.id === id);
-
-    if (blogIndex === -1) {
-        return res.status(404).json({
-            message: 'Blog not found!'
-        });
-    }
-
-    const deletedBlog = blogs[blogIndex];
-
-    blogs.splice(blogIndex, 1);
-
+app.delete('/api/blogs/:id', async (req, res) => {
     try {
-        saveBlogs();
+        const deletedBlog = await Blog.findByIdAndDelete(req.params.id);
+
+        if (!deletedBlog) {
+            return res.status(404).json({
+                message: 'Blog not found!'
+            });
+        }
 
         res.json({
             message: 'Blog deleted successfully!',
             blog: deletedBlog
         });
+
     } catch (error) {
-        blogs.splice(blogIndex, 0, deletedBlog);
+        console.error('Delete blog error:', error);
 
         res.status(500).json({
-            message: 'Could not save deletion.'
+            message: 'Could not delete blog.'
         });
     }
 });
-
 
 app.listen(3000, () => {
     console.log('BlogSpace server is running on port 3000');

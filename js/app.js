@@ -34,9 +34,20 @@ function renderNav() {
 // Escape user text before inserting into HTML
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-const postCard = (p) => `<article class="post"><span class="tag">${esc(p.tag)}</span><h3>${esc(p.title)}</h3>
-<p>${esc(p.body.slice(0, 110))}${p.body.length > 110 ? "…" : ""}</p><div class="meta">By ${esc(p.author)} on ${esc(p.date)}</div></article>`;
-
+const postCard = (p) => `
+    <article class="post">
+        <span class="tag">${esc(p.tag)}</span>
+        <h3>
+            <a href="blog-details.html?id=${encodeURIComponent(p.id)}">
+                ${esc(p.title)}
+            </a>
+        </h3>
+        <p>${esc(p.body.slice(0, 110))}${p.body.length > 110 ? "…" : ""}</p>
+        <div class="meta">
+            By ${esc(p.author)} on ${esc(p.date)}
+        </div>
+    </article>
+`;
 // ---------- Page logic ----------
 
 
@@ -339,7 +350,7 @@ async function initDashboard() {
     const deleteButton = e.target.closest("[data-id]");
 
     if (editButton) {
-      const id = Number(editButton.dataset.editId);
+      const id = editButton.dataset.editId;
       const blog = mine.find((p) => p.id === id);
       if (!blog) return;
 
@@ -386,8 +397,7 @@ async function initDashboard() {
     }
 
     if (deleteButton) {
-      const id = Number(deleteButton.dataset.id);
-
+      const id = deleteButton.dataset.id;
       if (!confirm("Are you sure you want to delete this blog?")) {
         return;
       }
@@ -473,8 +483,47 @@ fetch("http://localhost:3000/api/blogs", {
   });
 }
 
+async function initDetails() {
+    const details = document.getElementById("blogDetails");
+
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+
+    if (!id) {
+        details.textContent = "Blog not found.";
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `http://localhost:3000/api/blogs/${id}`
+        );
+
+        if (!response.ok) {
+            throw new Error("Blog not found");
+        }
+
+        const blog = await response.json();
+
+        details.innerHTML = `
+            <article class="post">
+                <span class="tag">${esc(blog.tag || "General")}</span>
+                <h1>${esc(blog.title)}</h1>
+                <p>${esc(blog.content)}</p>
+                <div class="meta">
+                    By ${esc(blog.author)} on ${esc(blog.date)}
+                </div>
+            </article>
+        `;
+
+    } catch (error) {
+        console.error("Blog details error:", error);
+        details.textContent = "Unable to load blog details.";
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   renderNav();
-  const init = { home: initHome, register: initRegister, login: initLogin, dashboard: initDashboard, create: initCreate }[document.body.dataset.page];
+  const init = { home: initHome, register: initRegister, login: initLogin, dashboard: initDashboard, create: initCreate,details: initDetails }[document.body.dataset.page];
   init && init();
 });

@@ -64,3 +64,24 @@ tr:last-child td{border-bottom:0}
 
 @media (max-width:600px){.card{padding:22px}.hero{padding:40px 0 24px}}
 @media (prefers-reduced-motion:no-preference){.btn,.post{transition:background .2s,transform .2s}.post:hover{transform:translateY(-2px)}}
+
+/* Category Filter */
+.filter-box {
+  margin: 15px 0 25px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-box label {
+  font-weight: 600;
+}
+
+.filter-box select {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}

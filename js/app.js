@@ -52,10 +52,12 @@ const postCard = (p) => `
 
 
 
+
 async function initHome() {
   const postsContainer = document.getElementById("posts");
   const searchInput = document.getElementById("searchInput");
   const clearButton = document.getElementById("clearSearch");
+  const categoryFilter = document.getElementById("categoryFilter");
 
   postsContainer.innerHTML = "Loading blogs...";
 
@@ -84,31 +86,54 @@ async function initHome() {
         : "No blogs found.";
     }
 
+    // Search and category filtering
+    function applyFilters() {
+      const searchText = searchInput
+        ? searchInput.value.trim().toLowerCase()
+        : "";
+
+      const selectedCategory = categoryFilter
+        ? categoryFilter.value.toLowerCase()
+        : "all";
+
+      const filteredPosts = posts.filter(post => {
+        const matchesSearch = post.title.toLowerCase().includes(searchText);
+
+        const matchesCategory =
+          selectedCategory === "all" ||
+          post.tag.toLowerCase() === selectedCategory;
+
+        return matchesSearch && matchesCategory;
+      });
+
+      displayPosts(filteredPosts);
+    }
+
     // Display all blogs initially
     displayPosts(posts);
 
-    // Search blogs by title
+    // Search by title
     if (searchInput) {
-      searchInput.addEventListener("input", () => {
-        const searchText = searchInput.value.trim().toLowerCase();
-
-        const filteredPosts = posts.filter(post =>
-          post.title.toLowerCase().includes(searchText)
-        );
-
-        displayPosts(filteredPosts);
-      });
+      searchInput.addEventListener("input", applyFilters);
     }
 
-    // Clear search and display all blogs
+    // Filter by category
+    if (categoryFilter) {
+      categoryFilter.addEventListener("change", applyFilters);
+    }
+
+    // Clear search and category filters
     if (clearButton) {
       clearButton.addEventListener("click", () => {
         if (searchInput) {
           searchInput.value = "";
-          searchInput.focus();
         }
 
-        displayPosts(posts);
+        if (categoryFilter) {
+          categoryFilter.value = "all";
+        }
+
+        applyFilters();
       });
     }
 

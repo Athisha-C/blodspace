@@ -23,9 +23,12 @@ function renderNav() {
   document.getElementById("nav").innerHTML =
     `<nav class="navbar"><div class="container"><a class="logo" href="index.html">BlogSpace</a><ul class="nav-links">${links}</ul></div></nav>`;
   document.getElementById("logout")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    localStorage.removeItem("currentUser");
-    location.href = "index.html";
+   e.preventDefault();
+
+localStorage.removeItem("currentUser");
+localStorage.removeItem("token");
+
+location.href = "index.html";
   });
   const f = document.getElementById("footer");
   if (f) f.innerHTML = `<footer class="footer">© 2026 BlogSpace</footer>`;
@@ -243,6 +246,7 @@ function initRegister() {
 
 
 
+
 function initLogin() {
   const form = document.getElementById("loginForm");
 
@@ -291,19 +295,28 @@ function initLogin() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(password, data.message || "Email or password is incorrect.");
+        setError(
+          password,
+          data.message || "Email or password is incorrect."
+        );
         return;
       }
 
+      // Save JWT authentication token
+      store.set("token", data.token);
+
+      // Save logged-in user details
       store.set("currentUser", {
         name: data.user.name,
         email: data.user.email
       });
 
+      // Redirect to dashboard
       location.href = "dashboard.html";
 
     } catch (error) {
       console.error("Login error:", error);
+
       setError(
         password,
         "Cannot connect to the backend. Please try again."
@@ -315,9 +328,11 @@ function initLogin() {
 }
 
 
+
 function requireLogin() {
   if (!currentUser()) location.href = "login.html";
 }
+
 
 
 
@@ -325,6 +340,13 @@ async function initDashboard() {
   requireLogin();
 
   const user = currentUser();
+  const token = store.get("token");
+
+  if (!token) {
+    location.href = "login.html";
+    return;
+  }
+
   document.getElementById("welcome").textContent =
     `Welcome, ${user.name}`;
 
@@ -334,18 +356,36 @@ async function initDashboard() {
   let mine = [];
 
   try {
-    const response = await fetch("http://localhost:3000/api/blogs");
+    // Fetch only the logged-in user's blogs
+    const response = await fetch(
+      "http://localhost:3000/api/my-blogs",
+      {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      }
+    );
+
+    const data = await response.json();
 
     if (!response.ok) {
-      throw new Error("Failed to load blogs");
+      throw new Error(data.message || "Failed to load blogs");
     }
 
-    const blogs = await response.json();
+    mine = data;
 
-    mine = blogs.filter((blog) => blog.author === user.name);
+    // Get total number of blogs on BlogSpace
+    const allResponse = await fetch(
+      "http://localhost:3000/api/blogs"
+    );
 
-    document.getElementById("statPosts").textContent = mine.length;
-    document.getElementById("statAll").textContent = blogs.length;
+    const allBlogs = await allResponse.json();
+
+    document.getElementById("statPosts").textContent =
+      mine.length;
+
+    document.getElementById("statAll").textContent =
+      allResponse.ok ? allBlogs.length : "—";
 
     body.innerHTML = mine.length
       ? mine.map((p) => `
@@ -363,10 +403,13 @@ async function initDashboard() {
           You haven't written anything yet.
           <a href="create-blog.html">Create your first blog</a>.
         </td></tr>`;
+
   } catch (error) {
     console.error("Dashboard error:", error);
+
     body.innerHTML =
-      `<tr><td colspan="4">Unable to load blogs. Check your backend.</td></tr>`;
+      `<tr><td colspan="4">Unable to load blogs. Please log in again or check your backend.</td></tr>`;
+
     return;
   }
 
@@ -374,22 +417,34 @@ async function initDashboard() {
     const editButton = e.target.closest("[data-edit-id]");
     const deleteButton = e.target.closest("[data-id]");
 
+    // EDIT BLOG
     if (editButton) {
       const id = editButton.dataset.editId;
       const blog = mine.find((p) => p.id === id);
+
       if (!blog) return;
 
-      const newTitle = prompt("Enter the new blog title:", blog.title);
+      const newTitle = prompt(
+        "Enter the new blog title:",
+        blog.title
+      );
+
       if (newTitle === null) return;
 
       const newContent = prompt(
         "Enter the new blog content:",
-        blog.content ?? blog.body ?? ""
+        blog.content || ""
       );
+
       if (newContent === null) return;
 
-      if (newTitle.trim().length < 3 || newContent.trim().length < 20) {
-        alert("Title must be at least 3 characters and content at least 20 characters.");
+      if (
+        newTitle.trim().length < 3 ||
+        newContent.trim().length < 20
+      ) {
+        alert(
+          "Title must be at least 3 characters and content at least 20 characters."
+        );
         return;
       }
 
@@ -398,7 +453,10 @@ async function initDashboard() {
           `http://localhost:3000/api/blogs/${id}`,
           {
             method: "PUT",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            },
             body: JSON.stringify({
               title: newTitle.trim(),
               content: newContent.trim()
@@ -407,12 +465,14 @@ async function initDashboard() {
         );
 
         const data = await response.json();
+
         if (!response.ok) {
           throw new Error(data.message || "Failed to update blog");
         }
 
         alert("Blog updated successfully!");
         await initDashboard();
+
       } catch (error) {
         console.error("Edit error:", error);
         alert(error.message || "Could not update the blog.");
@@ -421,8 +481,10 @@ async function initDashboard() {
       return;
     }
 
+    // DELETE BLOG
     if (deleteButton) {
       const id = deleteButton.dataset.id;
+
       if (!confirm("Are you sure you want to delete this blog?")) {
         return;
       }
@@ -430,17 +492,26 @@ async function initDashboard() {
       try {
         const response = await fetch(
           `http://localhost:3000/api/blogs/${id}`,
-          { method: "DELETE" }
+          {
+            method: "DELETE",
+            headers: {
+              "Authorization": `Bearer ${token}`
+            }
+          }
         );
 
+        const data = await response.json();
+
         if (!response.ok) {
-          throw new Error("Failed to delete blog");
+          throw new Error(data.message || "Failed to delete blog");
         }
 
+        alert("Blog deleted successfully!");
         await initDashboard();
+
       } catch (error) {
         console.error("Delete error:", error);
-        alert("Could not delete the blog. Please try again.");
+        alert(error.message || "Could not delete the blog.");
       }
     }
   };
@@ -448,65 +519,86 @@ async function initDashboard() {
 
 
 
-function initCreate() {
+
+
+async function initCreate() {
   requireLogin();
+
   const form = document.getElementById("blogForm");
-  form.addEventListener("submit", (e) => {
+
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
+
     const { title, tag, body } = form;
+
     const ok = [
-      setError(title, title.value.trim().length < 3 ? "Title needs at least 3 characters." : ""),
-      setError(body, body.value.trim().length < 20 ? "Write at least 20 characters." : ""),
+      setError(
+        title,
+        title.value.trim().length < 3
+          ? "Title needs at least 3 characters."
+          : ""
+      ),
+      setError(
+        body,
+        body.value.trim().length < 20
+          ? "Write at least 20 characters."
+          : ""
+      ),
     ].every(Boolean);
+
     if (!ok) return;
-    
-const newPost = {
-  title: title.value.trim(),
-  tag: tag.value,
-  body: body.value.trim(),
-  author: currentUser().name,
-  date: new Date().toISOString().slice(0, 10)
-};
 
-fetch("http://localhost:3000/api/blogs", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json"
-  },
- body: JSON.stringify({
-  title: newPost.title,
-  content: newPost.body,
-  author: newPost.author,
-  tag: newPost.tag,
-  date: newPost.date
-})
-})
-  
-.then(async (response) => {
-  const data = await response.json();
+    const token = store.get("token");
 
-  if (!response.ok) {
-    throw new Error(data.message || "Failed to publish blog");
-  }
+    if (!token) {
+      document.getElementById("msg").textContent =
+        "Please log in again.";
+      return;
+    }
 
-  return data;
-})
+    const newPost = {
+      title: title.value.trim(),
+      content: body.value.trim(),
+      tag: tag.value
+    };
 
-  .then(() => {
-    document.getElementById("msg").textContent =
-      "Published successfully!";
-    setTimeout(() => {
-      location.href = "dashboard.html";
-    }, 900);
-  })
-  .catch((error) => {
-    console.error(error);
-    document.getElementById("msg").textContent =
-      "Could not publish. Check whether the backend is running.";
-  });
+    try {
+      const response = await fetch(
+        "http://localhost:3000/api/blogs",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify(newPost)
+        }
+      );
 
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Failed to publish blog"
+        );
+      }
+
+      document.getElementById("msg").textContent =
+        "Published successfully!";
+
+      setTimeout(() => {
+        location.href = "dashboard.html";
+      }, 900);
+
+    } catch (error) {
+      console.error(error);
+
+      document.getElementById("msg").textContent =
+        error.message || "Could not publish. Check whether the backend is running.";
+    }
   });
 }
+
 
 async function initDetails() {
     const details = document.getElementById("blogDetails");

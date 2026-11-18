@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const dns = require('dns');
@@ -16,6 +17,29 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({
+            message: 'Access denied. Please log in.'
+        });
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({
+                message: 'Invalid or expired token.'
+            });
+        }
+
+        req.user = user;
+        next();
+    });
+}
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI)
@@ -94,6 +118,7 @@ app.post('/api/register', async (req, res) => {
 });
 
 // LOGIN
+
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -124,8 +149,16 @@ app.post('/api/login', async (req, res) => {
             });
         }
 
+        // Generate JWT token
+        const token = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: '1h' }
+        );
+
         res.json({
             message: 'Login successful!',
+            token: token,
             user: {
                 id: user._id,
                 name: user.name,
@@ -141,6 +174,7 @@ app.post('/api/login', async (req, res) => {
         });
     }
 });
+
 
 // GET ALL BLOGS
 app.get('/api/blogs', async (req, res) => {
@@ -200,10 +234,36 @@ app.get('/api/blogs/:id', async (req, res) => {
     }
 });
 
-// CREATE BLOG
-app.post('/api/blogs', async (req, res) => {
+
+// GET LOGGED-IN USER'S BLOGS
+app.get('/api/my-blogs', authenticateToken, async (req, res) => {
     try {
-        const { title, content, author, tag } = req.body;
+        const blogs = await Blog.find({
+            user: req.user.userId
+        }).sort({ date: -1 });
+
+        res.json(blogs.map(blog => ({
+            id: blog._id,
+            title: blog.title,
+            content: blog.content,
+            author: blog.author,
+            tag: blog.tag,
+            date: blog.date
+        })));
+
+    } catch (error) {
+        console.error('My blogs error:', error);
+
+        res.status(500).json({
+            message: 'Could not fetch your blogs.'
+        });
+    }
+});
+
+ // CREATE BLOG
+app.post('/api/blogs', authenticateToken, async (req, res) => {
+    try {
+        const { title, content, tag } = req.body;
 
         if (
             typeof title !== 'string' ||
@@ -216,10 +276,21 @@ app.post('/api/blogs', async (req, res) => {
             });
         }
 
+        // Find the logged-in user
+        const user = await User.findById(req.user.userId);
+
+        if (!user) {
+            return res.status(404).json({
+                message: 'User not found.'
+            });
+        }
+
+        // Create blog linked to the logged-in user
         const newBlog = await Blog.create({
             title: title.trim(),
             content: content.trim(),
-            author: author || 'BlogSpace User',
+            author: user.name,
+            user: user._id,
             tag: tag || 'General'
         });
 
@@ -237,10 +308,13 @@ app.post('/api/blogs', async (req, res) => {
     }
 });
 
+
 // UPDATE BLOG
-app.put('/api/blogs/:id', async (req, res) => {
+
+// UPDATE BLOG - Only the owner can edit
+app.put('/api/blogs/:id', authenticateToken, async (req, res) => {
     try {
-        const { title, content, author, tag } = req.body;
+        const { title, content } = req.body;
 
         if (
             typeof title !== 'string' ||
@@ -254,46 +328,30 @@ app.put('/api/blogs/:id', async (req, res) => {
         }
 
         if (!mongoose.isValidObjectId(req.params.id)) {
-            return res.status(404).json({
-                message: 'Blog not found!'
+            return res.status(400).json({
+                message: 'Invalid blog ID.'
             });
         }
 
-        const updates = {
-            title: title.trim(),
-            content: content.trim()
-        };
+        const blog = await Blog.findOne({
+            _id: req.params.id,
+            user: req.user.userId
+        });
 
-        if (typeof author === 'string') {
-            updates.author = author;
-        }
-
-        if (typeof tag === 'string') {
-            updates.tag = tag;
-        }
-
-        const updatedBlog = await Blog.findByIdAndUpdate(
-            req.params.id,
-            updates,
-            { new: true, runValidators: true }
-        );
-
-        if (!updatedBlog) {
+        if (!blog) {
             return res.status(404).json({
-                message: 'Blog not found!'
+                message: 'Blog not found or you do not have permission to edit it.'
             });
         }
+
+        blog.title = title.trim();
+        blog.content = content.trim();
+
+        await blog.save();
 
         res.json({
             message: 'Blog updated successfully!',
-            blog: {
-                id: updatedBlog._id,
-                title: updatedBlog.title,
-                content: updatedBlog.content,
-                author: updatedBlog.author,
-                tag: updatedBlog.tag,
-                date: updatedBlog.date
-            }
+            blog
         });
 
     } catch (error) {
@@ -305,28 +363,31 @@ app.put('/api/blogs/:id', async (req, res) => {
     }
 });
 
+
 // DELETE BLOG
-app.delete('/api/blogs/:id', async (req, res) => {
+
+// DELETE BLOG - Only the owner can delete
+app.delete('/api/blogs/:id', authenticateToken, async (req, res) => {
     try {
         if (!mongoose.isValidObjectId(req.params.id)) {
-            return res.status(404).json({
-                message: 'Blog not found!'
+            return res.status(400).json({
+                message: 'Invalid blog ID.'
             });
         }
 
-        const deletedBlog = await Blog.findByIdAndDelete(
-            req.params.id
-        );
+        const blog = await Blog.findOneAndDelete({
+            _id: req.params.id,
+            user: req.user.userId
+        });
 
-        if (!deletedBlog) {
+        if (!blog) {
             return res.status(404).json({
-                message: 'Blog not found!'
+                message: 'Blog not found or you do not have permission to delete it.'
             });
         }
 
         res.json({
-            message: 'Blog deleted successfully!',
-            blog: deletedBlog
+            message: 'Blog deleted successfully!'
         });
 
     } catch (error) {
@@ -338,7 +399,7 @@ app.delete('/api/blogs/:id', async (req, res) => {
     }
 });
 
-// START SERVER
 app.listen(3000, () => {
-    console.log('BlogSpace server is running on port 3000');
+    console.log("Server running on port 3000");
 });
+

@@ -67,4 +67,4 @@ BlogSpace is a full-stack blogging web application that allows users to register
 
 ## Project
 
-BlogSpace –  Full Stack Development Project
+BlogSpace – Full Stack Development Project

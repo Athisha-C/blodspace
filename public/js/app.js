@@ -65,8 +65,7 @@ async function initHome() {
   postsContainer.innerHTML = "Loading blogs...";
 
   try {
-    const response = await fetch("http://localhost:3000/api/blogs");
-
+    const response = await fetch("/api/blogs");
     if (!response.ok) {
       throw new Error("Failed to load blogs");
     }
@@ -204,7 +203,7 @@ function initRegister() {
 
     try {
       const response = await fetch(
-        "http://localhost:3000/api/register",
+        "/api/register",
         {
           method: "POST",
           headers: {
@@ -279,7 +278,7 @@ function initLogin() {
 
     try {
       const response = await fetch(
-        "http://localhost:3000/api/login",
+          "/api/login",
         {
           method: "POST",
           headers: {
@@ -358,7 +357,7 @@ async function initDashboard() {
   try {
     // Fetch only the logged-in user's blogs
     const response = await fetch(
-      "http://localhost:3000/api/my-blogs",
+      "/api/my-blogs",
       {
         headers: {
           "Authorization": `Bearer ${token}`
@@ -376,7 +375,7 @@ async function initDashboard() {
 
     // Get total number of blogs on BlogSpace
     const allResponse = await fetch(
-      "http://localhost:3000/api/blogs"
+       "/api/blogs"
     );
 
     const allBlogs = await allResponse.json();
@@ -450,7 +449,7 @@ async function initDashboard() {
 
       try {
         const response = await fetch(
-          `http://localhost:3000/api/blogs/${id}`,
+          `/api/blogs/${id}`,
           {
             method: "PUT",
             headers: {
@@ -491,7 +490,7 @@ async function initDashboard() {
 
       try {
         const response = await fetch(
-          `http://localhost:3000/api/blogs/${id}`,
+           `/api/blogs/${id}`,
           {
             method: "DELETE",
             headers: {
@@ -564,7 +563,7 @@ async function initCreate() {
 
     try {
       const response = await fetch(
-        "http://localhost:3000/api/blogs",
+        "/api/blogs",
         {
           method: "POST",
           headers: {
@@ -613,7 +612,7 @@ async function initDetails() {
 
     try {
         const response = await fetch(
-            `http://localhost:3000/api/blogs/${id}`
+            `/api/blogs/${id}`
         );
 
         if (!response.ok) {

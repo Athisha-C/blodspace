@@ -1,5 +1,6 @@
 
 const express = require('express');
+const path = require("path");
 const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -49,8 +50,19 @@ mongoose.connect(process.env.MONGODB_URI)
     });
 
 // Home route
+// Serve frontend files
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.get('/', (req, res) => {
-    res.send('Welcome to BlogSpace Backend!');
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// API status
+app.get('/api/status', (req, res) => {
+    res.json({
+        message: 'BlogSpace API is working!',
+        status: 'success'
+    });
 });
 
 // API status
